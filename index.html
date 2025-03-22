@@ -4,26 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CoinTaps - Tap to Win!</title>
+    <!-- Farcaster Frames v2 Meta Tags -->
     <meta property="fc:frame" content="vNext">
     <meta property="fc:frame:version" content="vNext">
     <meta property="fc:frame:image" content="https://cointaps.xyz/image.png">
+    <meta property="fc:frame:input:text" content="Enter your nickname">
     <meta property="fc:frame:button:1" content="Start Game">
     <meta property="fc:frame:button:1:action" content="post">
     <meta property="fc:frame:button:1:target" content="https://cointaps.xyz/api/start">
     <meta property="fc:frame:button:2" content="Leaderboard">
     <meta property="fc:frame:button:2:action" content="post">
     <meta property="fc:frame:button:2:target" content="https://cointaps.xyz/api/leaderboard">
-    <meta property="fc:frame:input:text" content="Enter your nickname">
     <meta property="fc:frame:state" content="initial">
     <meta property="fc:frame:icon" content="https://cointaps.xyz/icon.png">
     <meta property="fc:frame:splash:image" content="https://cointaps.xyz/splash.png">
     <meta property="fc:frame:splash:background_color" content="#eeccff">
     <meta property="fc:frame:webhook" content="https://cointaps.xyz/api/webhook">
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="CoinTaps - Tap to Win!">
+    <meta property="og:image" content="https://cointaps.xyz/image.png">
+    <meta property="og:description" content="Tap coins to win points in this exciting game!">
+    <!-- Load Farcade SDK and Viem -->
     <script src="https://unpkg.com/@farcade-game-sdk@latest/dist/index.min.js"></script>
+    <script src="https://unpkg.com/viem@latest/dist/umd/index.js"></script>
     <style>
         @font-face {
             font-family: 'CustomFont';
-            src: url('/assets/fonts/DS-DIGI.TTF') format('truetype');
+            src: url('https://cointaps.xyz/assets/fonts/DS-DIGI.TTF') format('truetype');
             font-weight: normal;
             font-style: normal;
         }
@@ -211,17 +218,19 @@
                 <span>TAPS</span>
             </div>
             <input type="text" id="nicknameInput" placeholder="Enter your nickname" maxlength="15">
-            <button onclick="submitNickname()">Start Game</button>
+            <button onclick="startGameWithoutWallet()">Start Game</button>
+            <button onclick="connectWalletAndStart()">Connect Wallet & Start</button>
             <button onclick="showInfo()">Info</button>
             <button onclick="showLeaderboardFromStart()">Leaderboard</button>
+            <p id="walletStatus">Wallet: Not Connected</p>
         </div>
         <div id="infoScreen">
             <h2>Game Rules</h2>
             <div id="infoContent">
-                <p><img id="normalCoinIcon" src="/assets/images/BTC.png"> Tap coins to earn points (+10)</p>
-                <p><img id="rugPullIcon" src="/assets/images/RUGPULL.png"> Avoid RugPulls (-100, -1 life)</p>
-                <p><img id="baseBonusIcon" src="/assets/images/BASE.png"> Catch BaseBonus for bonus (+250)</p>
-                <p><img id="powerUpIcon" src="/assets/images/STAR.png"> Grab PowerUps for special effects</p>
+                <p><img src="https://cointaps.xyz/assets/images/BTC.png"> Tap coins to earn points (+10)</p>
+                <p><img src="https://cointaps.xyz/assets/images/RUGPULL.png"> Avoid RugPulls (-100, -1 life)</p>
+                <p><img src="https://cointaps.xyz/assets/images/BASE.png"> Catch BaseBonus for bonus (+250)</p>
+                <p><img src="https://cointaps.xyz/assets/images/STAR.png"> Grab PowerUps for special effects</p>
             </div>
             <button onclick="hideInfo()">Close</button>
         </div>
@@ -261,6 +270,7 @@
         const leaderboardList = document.getElementById('leaderboardList');
         const statsDiv = document.getElementById('stats');
         const nicknameInput = document.getElementById('nicknameInput');
+        const walletStatus = document.getElementById('walletStatus');
 
         let gameState = {
             score: 0,
@@ -279,24 +289,16 @@
             levelTimeRemaining: 10000,
             soundOn: true,
             hits: {
-                BTC: 0,
-                ETH: 0,
-                DEGEN: 0,
-                SOL: 0,
-                DOGE: 0,
-                BNKR: 0,
-                USDC: 0,
-                OP: 0,
-                RUGPULL: 0,
-                BASE: 0,
-                STAR: 0
+                BTC: 0, ETH: 0, DEGEN: 0, SOL: 0, DOGE: 0, BNKR: 0, USDC: 0, OP: 0,
+                RUGPULL: 0, BASE: 0, STAR: 0
             },
             nickname: "",
             activePower: null,
             powerTimer: 0,
             lastTouchX: 0,
             lastTouchY: 0,
-            powerUpQueue: []
+            powerUpQueue: [],
+            walletAddress: null
         };
 
         let startEffects = {
@@ -308,25 +310,25 @@
         let gradientOffset = 0;
 
         const coinImages = [
-            "/assets/images/BTC.png",
-            "/assets/images/ETH.png",
-            "/assets/images/DEGEN.png",
-            "/assets/images/SOL.png",
-            "/assets/images/DOGE.png",
-            "/assets/images/BNKR.png",
-            "/assets/images/USDC.png",
-            "/assets/images/OP.png"
+            "https://cointaps.xyz/assets/images/BTC.png",
+            "https://cointaps.xyz/assets/images/ETH.png",
+            "https://cointaps.xyz/assets/images/DEGEN.png",
+            "https://cointaps.xyz/assets/images/SOL.png",
+            "https://cointaps.xyz/assets/images/DOGE.png",
+            "https://cointaps.xyz/assets/images/BNKR.png",
+            "https://cointaps.xyz/assets/images/USDC.png",
+            "https://cointaps.xyz/assets/images/OP.png"
         ];
         const coinTypes = ["BTC", "ETH", "DEGEN", "SOL", "DOGE", "BNKR", "USDC", "OP"];
-        const RugPull = "/assets/images/RUGPULL.png";
-        const BaseBonus = "/assets/images/BASE.png";
-        const PowerUp = "/assets/images/STAR.png";
+        const RugPull = "https://cointaps.xyz/assets/images/RUGPULL.png";
+        const BaseBonus = "https://cointaps.xyz/assets/images/BASE.png";
+        const PowerUp = "https://cointaps.xyz/assets/images/STAR.png";
 
-        const normalSound = new Audio("/assets/sounds/COIN.wav");
-        const RugPullSound = new Audio("/assets/sounds/RUGPULL.wav");
-        const BaseBonusSound = new Audio("/assets/sounds/BONUS.wav");
-        const backgroundMusic = new Audio("/assets/sounds/BACKROUND.mp3");
-        const powerUpSound = new Audio("/assets/sounds/BONUS.wav");
+        const normalSound = new Audio("https://cointaps.xyz/assets/sounds/COIN.wav");
+        const RugPullSound = new Audio("https://cointaps.xyz/assets/sounds/RUGPULL.wav");
+        const BaseBonusSound = new Audio("https://cointaps.xyz/assets/sounds/BONUS.wav");
+        const backgroundMusic = new Audio("https://cointaps.xyz/assets/sounds/BACKROUND.mp3");
+        const powerUpSound = new Audio("https://cointaps.xyz/assets/sounds/BONUS.wav");
         backgroundMusic.loop = true;
         backgroundMusic.volume = 0.5;
 
@@ -392,6 +394,7 @@
                 startEffects.stars = Array(30).fill().map(() => new Star());
                 preloadImages();
                 drawStartEffects();
+                frameConnector.setup().catch(e => console.warn("Wallet setup failed:", e));
                 if (typeof window.FarcadeSDK !== 'undefined') {
                     window.FarcadeSDK.singlePlayer.actions.ready();
                     console.log("Farcade SDK hazır.");
@@ -687,22 +690,55 @@
             console.log("Ses durumu:", gameState.soundOn ? "Açık" : "Kapalı");
         }
 
-        function submitNickname() {
+        const frameConnector = {
+            connected: false,
+            provider: null,
+            async setup() {
+                this.provider = window.ethereum || (window.FarcadeSDK && window.FarcadeSDK.wallet ? window.FarcadeSDK.wallet.ethProvider : null);
+                if (!this.provider) return;
+                console.log("Wallet provider detected.");
+            },
+            async connect() {
+                if (!this.provider) {
+                    alert("No Ethereum provider found!");
+                    return;
+                }
+                try {
+                    const accounts = await this.provider.request({ method: "eth_requestAccounts" });
+                    this.connected = true;
+                    gameState.walletAddress = accounts[0];
+                    walletStatus.textContent = `Wallet: ${gameState.walletAddress.slice(0, 6)}...${gameState.walletAddress.slice(-4)}`;
+                    console.log("Connected wallet:", gameState.walletAddress);
+                } catch (error) {
+                    console.error("Wallet connection failed:", error);
+                    alert("Failed to connect wallet.");
+                }
+            }
+        };
+
+        async function connectWalletAndStart() {
             const nickname = nicknameInput.value.trim();
             if (nickname === "") {
                 alert("Please enter a nickname!");
                 return;
             }
             gameState.nickname = nickname;
-            if (imagesLoaded === totalImages) {
-                console.log("Görseller yüklendi, oyun başlatılıyor.");
-                startGame();
-            } else {
-                console.log("Görseller henüz yüklenmedi, bekleniyor...");
-                loadingScreen.style.display = 'flex';
-                startScreen.style.display = 'none';
+            try {
+                if (!frameConnector.connected) await frameConnector.connect();
+            } catch (e) {
+                alert("Failed to connect wallet. Starting without wallet.");
             }
-            document.querySelector('meta[property="fc:frame:state"]').setAttribute('content', JSON.stringify({ state: 'playing', nickname }));
+            startGame();
+        }
+
+        function startGameWithoutWallet() {
+            const nickname = nicknameInput.value.trim();
+            if (nickname === "") {
+                alert("Please enter a nickname!");
+                return;
+            }
+            gameState.nickname = nickname;
+            startGame();
         }
 
         function startGame() {
@@ -734,6 +770,7 @@
             }
             console.log("Game loop başlatılıyor...");
             requestAnimationFrame(gameLoop);
+            document.querySelector('meta[property="fc:frame:state"]').setAttribute('content', JSON.stringify({ state: 'playing', nickname: gameState.nickname, wallet: gameState.walletAddress }));
         }
 
         function restartGame() {
@@ -764,17 +801,17 @@
             endTitle.textContent = gameState.lives <= 0 ? 'Game Over' : 'Time’s Up!';
             finalScore.textContent = gameState.score;
             statsDiv.innerHTML = `
-                <p><img src="/assets/images/BTC.png"> BTC: ${gameState.hits.BTC}</p>
-                <p><img src="/assets/images/ETH.png"> ETH: ${gameState.hits.ETH}</p>
-                <p><img src="/assets/images/DEGEN.png"> DEGEN: ${gameState.hits.DEGEN}</p>
-                <p><img src="/assets/images/SOL.png"> SOL: ${gameState.hits.SOL}</p>
-                <p><img src="/assets/images/DOGE.png"> DOGE: ${gameState.hits.DOGE}</p>
-                <p><img src="/assets/images/BNKR.png"> BNKR: ${gameState.hits.BNKR}</p>
-                <p><img src="/assets/images/USDC.png"> USDC: ${gameState.hits.USDC}</p>
-                <p><img src="/assets/images/OP.png"> OP: ${gameState.hits.OP}</p>
-                <p><img src="/assets/images/RUGPULL.png"> RUGPULL: ${gameState.hits.RUGPULL}</p>
-                <p><img src="/assets/images/BASE.png"> BASE: ${gameState.hits.BASE}</p>
-                <p><img src="/assets/images/STAR.png"> STAR: ${gameState.hits.STAR}</p>
+                <p><img src="https://cointaps.xyz/assets/images/BTC.png"> BTC: ${gameState.hits.BTC}</p>
+                <p><img src="https://cointaps.xyz/assets/images/ETH.png"> ETH: ${gameState.hits.ETH}</p>
+                <p><img src="https://cointaps.xyz/assets/images/DEGEN.png"> DEGEN: ${gameState.hits.DEGEN}</p>
+                <p><img src="https://cointaps.xyz/assets/images/SOL.png"> SOL: ${gameState.hits.SOL}</p>
+                <p><img src="https://cointaps.xyz/assets/images/DOGE.png"> DOGE: ${gameState.hits.DOGE}</p>
+                <p><img src="https://cointaps.xyz/assets/images/BNKR.png"> BNKR: ${gameState.hits.BNKR}</p>
+                <p><img src="https://cointaps.xyz/assets/images/USDC.png"> USDC: ${gameState.hits.USDC}</p>
+                <p><img src="https://cointaps.xyz/assets/images/OP.png"> OP: ${gameState.hits.OP}</p>
+                <p><img src="https://cointaps.xyz/assets/images/RUGPULL.png"> RUGPULL: ${gameState.hits.RUGPULL}</p>
+                <p><img src="https://cointaps.xyz/assets/images/BASE.png"> BASE: ${gameState.hits.BASE}</p>
+                <p><img src="https://cointaps.xyz/assets/images/STAR.png"> STAR: ${gameState.hits.STAR}</p>
             `;
             saveScore(gameState.score, gameState.nickname);
             backgroundMusic.pause();
@@ -782,7 +819,7 @@
             if (typeof window.FarcadeSDK !== 'undefined') {
                 window.FarcadeSDK.singlePlayer.actions.gameOver({ score: gameState.score });
             }
-            document.querySelector('meta[property="fc:frame:state"]').setAttribute('content', JSON.stringify({ state: 'ended', score: gameState.score }));
+            document.querySelector('meta[property="fc:frame:state"]').setAttribute('content', JSON.stringify({ state: 'ended', score: gameState.score, wallet: gameState.walletAddress }));
         }
 
         function generatePowerUpQueue() {
@@ -985,27 +1022,11 @@
                         for (let j = 0; j < 30; j++) gameState.particles.push(new Particle(obj.x, obj.y, true));
                         if (gameState.soundOn) RugPullSound.play().catch(e => console.error("RugPull sound error:", e));
                         triggerFlash('red');
-                    } else if (obj.isBaseBonus) {
-                        gameState.score += 250;
-                        gameState.hits.BASE += 1;
-                        gameState.bonusTexts.push(new BonusText(obj.x, obj.y, "+250"));
-                        for (let j = 0; j < 30; j++) gameState.particles.push(new Particle(obj.x, obj.y));
-                        if (gameState.soundOn) BaseBonusSound.play().catch(e => console.error("BaseBonus sound error:", e));
-                        triggerFlash('green');
-                    } else if (obj.isPowerUp) {
-                        const powers = ['slow', 'extraLife', 'magnet'];
-                        const randomPower = weightedRandom(powers, [0.4, 0.2, 0.4]);
-                        activatePower(randomPower, obj.x, obj.y);
-                        gameState.hits.STAR += 1;
-                        for (let j = 0; j < 30; j++) gameState.particles.push(new Particle(obj.x, obj.y));
                     } else {
-                        gameState.score += 10;
-                        gameState.hits[obj.subType] += 1;
-                        hit = true;
-                        for (let j = 0; j < 20; j++) gameState.particles.push(new Particle(obj.x, obj.y));
-                        if (gameState.soundOn) normalSound.play().catch(e => console.error("Normal sound error:", e));
+                        obj.collect();
                     }
                     gameState.objects.splice(i, 1);
+                    hit = true;
                     if (typeof window.FarcadeSDK !== 'undefined') {
                         window.FarcadeSDK.singlePlayer.actions.hapticFeedback();
                     }
@@ -1023,6 +1044,14 @@
 
         canvas.addEventListener('click', handleInput);
         canvas.addEventListener('touchstart', handleInput);
+        canvas.addEventListener('touchmove', e => {
+            gameState.lastTouchX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+            gameState.lastTouchY = e.touches[0].clientY - canvas.getBoundingClientRect().top;
+        });
+        canvas.addEventListener('mousemove', e => {
+            gameState.lastTouchX = e.clientX - canvas.getBoundingClientRect().left;
+            gameState.lastTouchY = e.clientY - canvas.getBoundingClientRect().top;
+        });
 
         function gameLoop(timestamp) {
             if (gameState.isGameOver || !gameState.isGameStarted) {
@@ -1060,14 +1089,8 @@
             gameState.shootingStars = gameState.shootingStars.filter(star => star.update());
             drawGame();
 
-            if (gameState.lives <= 0) {
-                console.log("Oyun bitti: Canlar sıfırlandı.");
-                endGame();
-            } else if (gameState.level > 20) {
-                console.log("Oyun bitti: Maksimum seviye aşıldı.");
-                endGame();
-            } else if (gameState.totalTimeRemaining <= 0) {
-                console.log("Oyun bitti: Süre doldu.");
+            if (gameState.lives <= 0 || gameState.totalTimeRemaining <= 0 || gameState.level > 20) {
+                console.log("Oyun bitti:", gameState.lives <= 0 ? "Canlar sıfırlandı" : gameState.totalTimeRemaining <= 0 ? "Süre doldu" : "Maksimum seviye aşıldı");
                 endGame();
             } else {
                 requestAnimationFrame(gameLoop);
@@ -1079,12 +1102,12 @@
                 const response = await fetch('https://cointaps-api.vercel.app/api/scores', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nickname, score })
+                    body: JSON.stringify({ nickname, score, wallet: gameState.walletAddress })
                 });
                 if (!response.ok) {
                     throw new Error(`Sunucu hatası: ${response.status} - ${await response.text()}`);
                 }
-                console.log("Skor sunucuya kaydedildi:", { nickname, score });
+                console.log("Skor sunucuya kaydedildi:", { nickname, score, wallet: gameState.walletAddress });
             } catch (error) {
                 console.error("Skor kaydederken hata:", error);
                 let scores = JSON.parse(localStorage.getItem('cointaps_scores') || '[]');
@@ -1093,9 +1116,10 @@
                     if (scores[existingScoreIndex].score < score) {
                         scores[existingScoreIndex].score = score;
                         scores[existingScoreIndex].date = new Date().toLocaleString();
+                        scores[existingScoreIndex].wallet = gameState.walletAddress;
                     }
                 } else {
-                    scores.push({ score, nickname, date: new Date().toLocaleString() });
+                    scores.push({ score, nickname, date: new Date().toLocaleString(), wallet: gameState.walletAddress });
                 }
                 scores.sort((a, b) => b.score - a.score);
                 scores = scores.slice(0, 10);
@@ -1154,7 +1178,7 @@
             leaderboardScreen.style.display = 'none';
             if (gameState.isGameOver) {
                 endScreen.style.display = 'flex';
-                document.querySelector('meta[property="fc:frame:state"]').setAttribute('content', JSON.stringify({ state: 'ended', score: gameState.score }));
+                document.querySelector('meta[property="fc:frame:state"]').setAttribute('content', JSON.stringify({ state: 'ended', score: gameState.score, wallet: gameState.walletAddress }));
             } else {
                 startScreen.style.display = 'flex';
                 document.querySelector('meta[property="fc:frame:state"]').setAttribute('content', 'initial');
